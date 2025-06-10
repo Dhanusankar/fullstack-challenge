@@ -73,7 +73,7 @@ This demonstrates a working reuse of authentication credentials while failing sa
 
 ---
 
-##  Output
+## output
 
 - `users.json` will be created at the root with the following structure:
 
@@ -82,3 +82,10 @@ This demonstrates a working reuse of authentication credentials while failing sa
   "users": [ ... ],
   "currentUser": { ... } 
 }
+---
+
+## Loom video
+
+Watch a quick walkthrough of the project and how it works:
+
+  https://www.loom.com/share/8c3de0de435047feaa5e20e433ae49d5?sid=60894a84-dd49-4754-826b-a1c988e905c0 

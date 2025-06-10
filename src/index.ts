@@ -1,35 +1,72 @@
 import fetch from 'node-fetch';
 import * as fs from'fs';
 
-const API_URL = 'https://challenge.sunvoy.com/api/users';
-const COOKIE = 'JSESSIONID=bff0b105-fba7-4c14-a9eb-629e97bc8c42; _csrf_token=1501bdaeaa101de1fb210d3a2e9f56345b8336ed1e372d9abb674fe759ccbac3; user_preferences=eyJ0aGVtZSI6ImxpZ2h0IiwibGFuZ3VhZ2UiOiJlbiIsInRpbWV6b25lIjoiVVRDIiwibm90aWZpY2F0aW9ucyI6dHJ1ZX0%3D; analytics_id=analytics_a60a6b1cdbd939304b7297b4eae505f9; session_fingerprint=47db4aaee40f5f456778314eda979937362f62c809a570fe9c709eddcc9a42c7; feature_flags=eyJuZXdEYXNoYm9hcmQiOnRydWUsImJldGFGZWF0dXJlcyI6ZmFsc2UsImFkdmFuY2VkU2V0dGluZ3MiOnRydWUsImV4cGVyaW1lbnRhbFVJIjpmYWxzZX0%3D; tracking_consent=accepted; device_id=device_0727ed557bbad10017494546';
+const SESSION_FILE = './session.json';
+const OUTPUT_FILE = './users.json';
+const BASE_URL = 'https://challenge.sunvoy.com';
 
-
-async function fetchUsers() {
-    try{
-        const response = await fetch(API_URL, {
-            method: 'POST',
-            headers: {
-                'Cookie': COOKIE,
-                'Accept': 'application/json',
-                'User-Agent': 'Mozilla/5.0',
-                'Content-Type': 'application/json'
-            }
-        });
-
-        if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
-
-        const users = await response.json();
-
-        const formatted = JSON.stringify(users, null, 2);
-        fs.writeFileSync('users.json', formatted);
-        console.log( 'users.json created successfully' );
-
+function getSession(): string | null {
+    if (!fs.existsSync(SESSION_FILE)) {
+      console.warn(' session.json not found. Skipping authenticated requests.');
+      return null;
     }
-    catch(error){
-        console.error("Error fetching users: ", error);
-
+  
+    const session = JSON.parse(fs.readFileSync(SESSION_FILE, 'utf-8'));
+    return session.JSESSIONID || null;
+  }
+  
+  async function fetchUsers(cookie: string): Promise<any|null> {
+    const res = await fetch(`${BASE_URL}/api/users`, {
+      method: 'POST',
+      headers: {
+        'Cookie': `JSESSIONID=${cookie}`,
+        'Content-Type': 'application/json'
+      },
+      body: '{}' 
+    });
+  
+    if (!res.ok) throw new Error(`User fetch failed with status: ${res.status}`);
+    return await res.json();
+  }
+  
+  async function fetchCurrentUser(cookie: string): Promise<any|null> {
+    try {
+      const res = await fetch(`${BASE_URL}/api/settings`, {
+        method: 'POST',
+        headers: {
+          'Cookie': `JSESSIONID=${cookie}`,
+          'Content-Type': 'application/json'
+        },
+        body: '{}' 
+      });
+  
+      if (!res.ok) throw new Error(`Current user fetch failed with status: ${res.status}`);
+      return await res.json();
+    } catch {
+      return null;
     }
-    
-}
-fetchUsers();
+  }
+  
+  function saveOutput(users: any[] = [], currentUser: any = null) {
+    const result = currentUser ? { users, currentUser } : { users };
+    fs.writeFileSync(OUTPUT_FILE, JSON.stringify(result, null, 2));
+    console.log('users.json written successfully.');
+  }
+  
+  (async () => {
+    const cookie = getSession();
+    if (!cookie) {
+      console.warn('No valid session. Skipping user fetch. Create session.json and retry.');
+      saveOutput([], null); 
+      return;
+    }
+  
+    try {
+      const users = await fetchUsers(cookie);
+      const currentUser = await fetchCurrentUser(cookie);
+      saveOutput(users, currentUser);
+    } catch (err: any) {
+      console.error('Failed during script execution:', err.message);
+    }
+  })();
+  
